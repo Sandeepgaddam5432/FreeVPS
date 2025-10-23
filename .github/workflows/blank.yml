@@ -1,34 +1,62 @@
-name: Windows RDP - Cloudflare Tunnel
-
-on: [push, workflow_dispatch]
-
+name: WINDOWS 2022 RDP - CLOUDFLARE
+on:
+  workflow_dispatch
+  
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 9999
-
     steps:
-    - name: Setup cloudflared
-      uses: AnimMouse/setup-cloudflared@v2
+      - name: Setup Cloudflared
+        uses: AnimMouse/setup-cloudflared@v2
 
-    - name: Enable Remote Desktop
-      run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
-
-    - name: Enable Firewall Rule for RDP
-      run: Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-    - name: Set User Authentication
-      run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
-
-    - name: Set Administrator Password
-      run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd123!" -Force)
-
-    - name: Start Cloudflare Tunnel for RDP
-      run: |
-        Write-Host "Starting Cloudflare Tunnel for RDP..."
-        Write-Host "Tunnel URL will appear below:"
-        cloudflared tunnel --url tcp://localhost:3389
-
-    - name: Keep Session Alive
-      if: '! cancelled()'
-      run: Start-Sleep -Seconds 21600
+      - name: Download Customization Files
+        run: |
+          Invoke-WebRequest https://raw.githubusercontent.com/Riders004/rdp/master/start.bat -OutFile start.bat
+          Invoke-WebRequest https://raw.githubusercontent.com/Riders004/rdp/master/download1.jpeg -OutFile wallpaper.bat
+          Invoke-WebRequest https://raw.githubusercontent.com/Vip3rLi0n/Ngrok-RDPs/main/resources/loop.ps1 -OutFile loop.ps1
+          Write-Host "Customization files downloaded!"
+          
+      - name: Enable Windows RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+          copy wallpaper.bat D:\a\wallpaper.bat
+          Write-Host "RDP Enabled!"
+          
+      - name: Set Administrator Password
+        run: |
+          Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd123!" -Force)
+          Write-Host "Password configured successfully!"
+          
+      - name: Start Cloudflare Tunnel for RDP
+        run: |
+          Write-Host "============================================"
+          Write-Host "STARTING CLOUDFLARE TUNNEL FOR RDP"
+          Write-Host "============================================"
+          Write-Host ""
+          Write-Host "Tunnel URL will appear below:"
+          Write-Host ""
+          Start-Process PowerShell -ArgumentList '-NoExit -Command "cloudflared tunnel --url tcp://localhost:3389"'
+          Start-Sleep -Seconds 15
+          Write-Host ""
+          Write-Host "============================================"
+          Write-Host "CLOUDFLARE TUNNEL STARTED!"
+          Write-Host "Check the separate PowerShell window above for your tunnel URL"
+          Write-Host "============================================"
+          Write-Host ""
+          Write-Host "USERNAME: runneradmin"
+          Write-Host "PASSWORD: P@ssw0rd123!"
+          Write-Host "============================================"
+          
+      - name: Connect RDP
+        run: cmd /c start.bat
+        
+      - name: Keep Alive
+        run: |
+          Write-Host "Session is running..."
+          while ($true) {
+            Start-Sleep -Seconds 60
+            Write-Host "Active - $(Get-Date -Format 'HH:mm:ss')"
+          }
