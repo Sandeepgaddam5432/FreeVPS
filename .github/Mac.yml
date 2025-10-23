@@ -1,0 +1,75 @@
+name: macOS VNC - CLOUDFLARE
+on:
+  workflow_dispatch
+  
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 9999
+    steps:
+      - name: Install Cloudflared
+        run: |
+          brew install cloudflare/cloudflare/cloudflared
+          echo "Cloudflared installed successfully!"
+          
+      - name: Create VNC User
+        run: |
+          sudo dscl . -create /Users/vncuser
+          sudo dscl . -create /Users/vncuser UserShell /bin/bash
+          sudo dscl . -create /Users/vncuser RealName "VNC User"
+          sudo dscl . -create /Users/vncuser UniqueID 1001
+          sudo dscl . -create /Users/vncuser PrimaryGroupID 80
+          sudo dscl . -create /Users/vncuser NFSHomeDirectory /Users/vncuser
+          sudo dscl . -passwd /Users/vncuser "P@ssw0rd123!"
+          sudo dscl . -append /Groups/admin GroupMembership vncuser
+          sudo createhomedir -c -u vncuser
+          echo "VNC User created successfully!"
+          
+      - name: Enable VNC/Screen Sharing
+        run: |
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -restart -agent -privs -all
+          sudo defaults write /Library/Preferences/com.apple.RemoteManagement.plist VNCLegacyConnectionsEnabled -bool true
+          echo "VNC Server enabled!"
+          
+      - name: Set VNC Password
+        run: |
+          VNC_PASSWORD="P@ssw0rd123!"
+          VNC_HASH=$(echo -n "$VNC_PASSWORD" | openssl dgst -sha1 -binary | xxd -p | cut -c 1-40)
+          sudo defaults write /Library/Preferences/com.apple.VNCSettings.txt Password -data $VNC_HASH
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -agent
+          echo "VNC Password configured!"
+          
+      - name: Start Cloudflare Tunnel for VNC
+        run: |
+          echo "============================================"
+          echo "STARTING CLOUDFLARE TUNNEL FOR macOS VNC"
+          echo "============================================"
+          echo ""
+          echo "Tunnel URL will appear below:"
+          echo ""
+          cloudflared tunnel --url tcp://localhost:5900 &
+          sleep 15
+          echo ""
+          echo "============================================"
+          echo "CLOUDFLARE TUNNEL STARTED!"
+          echo "============================================"
+          echo ""
+          echo "VNC USERNAME: vncuser"
+          echo "VNC PASSWORD: P@ssw0rd123!"
+          echo "============================================"
+          
+      - name: Display System Info
+        run: |
+          echo "macOS Version: $(sw_vers -productVersion)"
+          echo "Architecture: $(uname -m)"
+          echo "Available Software:"
+          echo "- Xcode: $(xcodebuild -version | head -n 1)"
+          echo "- Homebrew: $(brew --version | head -n 1)"
+          
+      - name: Keep Alive
+        run: |
+          echo "Session is running..."
+          while true; do
+            sleep 60
+            echo "Active - $(date '+%H:%M:%S')"
+          done
